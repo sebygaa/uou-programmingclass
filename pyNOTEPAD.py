@@ -42,3 +42,8 @@ if __name__ == "__main__":
     print(f"The root is approximately: {root}")
 
 # %%
+# Flask example
+
+
+
+# %%
