@@ -7,7 +7,7 @@ from scipy.optimize import minimize
 from scipy.integrate import simpson
 
 # %%
-# spreading pressure calculation
+# Spreading pressure calculation
 
 # %%
 def iso2pi(fun, P_o, N_integ):
@@ -17,76 +17,19 @@ def iso2pi(fun, P_o, N_integ):
     pi_ov_RT = simpson(q_ov_P, x = P_ran)
     return pi_ov_RT
 
-# TESTING "iso2pi" function
-qm1 = 3
-b1 = 0.5
-def iso_test(P):
-    numer = qm1*b1*P
-    denom = 1+b1*P
-    q = numer/denom
-    return q
-
-P_o_test = 5
-pi_ov_RT_test05 = iso2pi(iso_test, P_o_test, 5)
-pi_ov_RT_test10 = iso2pi(iso_test, P_o_test, 10)
-pi_ov_RT_test20 = iso2pi(iso_test, P_o_test, 20)
-pi_ov_RT_test30 = iso2pi(iso_test, P_o_test, 30)
-print('pi05=',pi_ov_RT_test05)
-print('pi10=',pi_ov_RT_test10)
-print('pi20=',pi_ov_RT_test20)
-print('pi30=',pi_ov_RT_test30)
-
 # %%
 # Error estimating
-
 # %%
-
 def x2err_reg(fun1, fun2, y1, P, x1_est1):
     # y1*P = x1*(P_o1)
     P_o1 = y1*P/x1_est1
     # (1-y1)*P = (1-x1)*P_o2
     P_o2 = (1-y1)*P/(1-x1_est1)
-    N_integ_node = 10
+    N_integ_node = 20
     pi_ov_RT1 = iso2pi(fun1, P_o1, N_integ_node)
     pi_ov_RT2 = iso2pi(fun2, P_o2, N_integ_node)
     mse = np.sqrt((pi_ov_RT1 - pi_ov_RT2)**2)
     return mse
-
-
-# TESTING "x2err" function
-qm1 = 2
-qm2 = 1
-b1 = 0.2
-b2 = 0.4
-def iso_test1(P):
-    numer = qm1*b1*P
-    denom = 1+b1*P
-    q = numer/denom
-    return q
-    
-def iso_test2(P):
-    numer = qm2*b2*P
-    denom = 1+b2*P
-    q = numer/denom
-    return q
-
-y1_test = 0.5
-P_test = 2
-x_est_test = 0.3
-mse_test = x2err_reg(iso_test1, iso_test2, 
-                y1_test, P_test, x_est_test)
-print(mse_test)
-# %%
-# Optimizing test with x2err_reg
-# %%
-
-y1_test = 0.5
-P_test = 2
-err_test = lambda x: x2err_reg(iso_test1, iso_test2,
-                        y1_test, P_test, x[0])
-x_est0 = [0.3]
-opt_res = minimize(err_test, x_est0)
-print(opt_res)
 
 # %%
 # x to q val function x2q
@@ -99,30 +42,10 @@ def x2q(fun1, fun2, y1, P, x1):
     # 1/q_tot = sum( 1/q_o )
     q_o1 = fun1(P_o1)
     q_o2 = fun2(P_o2)
-    q_tot = 1/(1/q_o1 + 1/q_o2)
+    q_tot = 1/(x1/q_o1 + (1-x1)/q_o2)
     q1 = x1*q_tot
     q2 = (1-x1)*q_tot
     return q1,q2
-
-## TESTing x2q
-y1_test = 0.5
-P_test = 2
-err_test = lambda x: x2err_reg(iso_test1, iso_test2,
-                        y1_test, P_test, x[0])
-x_est0 = [0.3]
-opt_res = minimize(err_test, x_est0)
-x1_sol_test = opt_res.x[0]
-q1_test, q2_test = x2q(iso_test1, iso_test2, 
-                    y1_test, P_test, x1_sol_test)
-
-print('q1 = ')
-print(q1_test)
-print('q2 = ')
-print(q2_test)
-
-    
-# %% 
-#
 
 # %%
 ## Set Five diff cases
@@ -173,13 +96,6 @@ def gridsearch(fun, x_init, mesh_init,
         #print('mesh size = ', mesh_size*5)
     return x_update, fval
 
-gridupdate(err_test, 0.1, 0.01, 20)
-
-#x_min_grid, fun_val = gridsearch(err_test, 0.4, 0.01)
-#print('[Result: gridsearch 7 iterations]')
-#print('x=', '{0:.5f}'.format(x_min_grid))
-if __name__ == '__main__':
-    printrue = True
 # FINDING IAST 
 def IAST_bi(fun1, fun2, y1, P):
     # Case1: y1 > 1-1E-7
@@ -218,7 +134,7 @@ def IAST_bi(fun1, fun2, y1, P):
         
         if is_comp_err == False:
             x_sol = opt_res.x[0]
-            q1,q2 = x2q(iso_test1, iso_test2, 
+            q1,q2 = x2q(fun1, fun2, 
                         y1, P, x_sol)    
 ############            print('SuCCeSSS with optim solver !')
             return [q1,q2], fval
@@ -237,26 +153,142 @@ def IAST_bi(fun1, fun2, y1, P):
         x_sol, fval = gridsearch(obj_err, x_est0, 0.01,
                                 n_iter = 7, r_shrink_mesh = 0.4)
         if fval < 1E-5:
-            q1,q2 = x2q(iso_test1, iso_test2, 
+            q1,q2 = x2q(fun1, fun2, 
                         y1, P, x_sol)    
             return [q1,q2], fval
         else:
             x_est0 = x_sol
             x_sol, fval = gridsearch(obj_err, x_est0, 0.01,
                                 n_iter = 10, r_shrink_mesh = 0.15)
-            q1,q2 = x2q(iso_test1, iso_test2, 
+            q1,q2 = x2q(fun1, fun2, 
                         y1, P, x_sol)    
             return [q1,q2], fval
 
-# TEST function "findx_IAST"
-y1_test = 0.1
-P_test = 2
-[q1,q2], fval_test = IAST_bi(iso_test1, iso_test2,
-                            y1_test, P_test)
+# %%
+# TEST CODES 
+#[TEST 1] iso2pi
+#[TEST 2] x2err
+#[TEST 3] Optimization example
+#[TEST 4] x2q
+#[TEST 5] gridupdate
+#[TEST 6] gridsearch
+#[TEST 7] IAST_bi
 
-print('q1 = ')
-print(q1)
-print('q2 = ')
-print(q2)
-print('pi_error = ')
-print(fval_test)
+# %%
+## TEST CODE 1: iso2pi
+
+# %%
+# TESTING "iso2pi" function
+if __name__ == '__main__':
+    qm1 = 3
+    b1 = 0.5
+    def iso_test(P):
+        numer = qm1*b1*P
+        denom = 1+b1*P
+        q = numer/denom
+        return q
+
+    P_o_test = 5
+    pi_ov_RT_test05 = iso2pi(iso_test, P_o_test, 5)
+    pi_ov_RT_test10 = iso2pi(iso_test, P_o_test, 10)
+    pi_ov_RT_test20 = iso2pi(iso_test, P_o_test, 20)
+    pi_ov_RT_test30 = iso2pi(iso_test, P_o_test, 30)
+    print('pi05=',pi_ov_RT_test05)
+    print('pi10=',pi_ov_RT_test10)
+    print('pi20=',pi_ov_RT_test20)
+    print('pi30=',pi_ov_RT_test30)
+
+# %%
+## TEST CODE 2: x2err
+# %%
+# TESTING "x2err" function
+if __name__ == "__main__":
+    qm1 = 2
+    qm2 = 1
+    b1 = 0.2
+    b2 = 0.4
+    def iso_test1(P):
+        numer = qm1*b1*P
+        denom = 1+b1*P
+        q = numer/denom
+        return q
+        
+    def iso_test2(P):
+        numer = qm2*b2*P
+        denom = 1+b2*P
+        q = numer/denom
+        return q
+
+    y1_test = 0.5
+    P_test = 2
+    x_est_test = 0.3
+    mse_test = x2err_reg(iso_test1, iso_test2, 
+                    y1_test, P_test, x_est_test)
+    print(mse_test)
+
+# %%
+## TEST CODE 3: Optimization example
+# %%
+
+# Optimizing test with x2err_reg
+if __name__ == "__main__":
+    y1_test = 0.5
+    P_test = 2
+    err_test = lambda x: x2err_reg(iso_test1, iso_test2,
+                            y1_test, P_test, x[0])
+    x_est0 = [0.3]
+    opt_res = minimize(err_test, x_est0)
+    print(opt_res)
+
+# %%
+## TEST CODE 4: x2q
+
+# %%
+## TESTing x2q
+if __name__ == '__main__':
+    y1_test = 0.5
+    P_test = 2
+    err_test = lambda x: x2err_reg(iso_test1, iso_test2,
+                            y1_test, P_test, x[0])
+    x_est0 = [0.3]
+    opt_res = minimize(err_test, x_est0)
+    x1_sol_test = opt_res.x[0]
+    q1_test, q2_test = x2q(iso_test1, iso_test2, 
+                        y1_test, P_test, x1_sol_test)
+
+    print('q1 = ')
+    print(q1_test)
+    print('q2 = ')
+    print(q2_test)
+
+# %%
+## TEST CODE 5: gridupdate
+# %%
+if __name__ == "__main__":
+    gridupdate(err_test, 0.1, 0.01, 20)
+
+# %%
+## TEST CODE 
+# %%
+if __name__ == "__main__":
+    x_min_grid, fun_val = gridsearch(err_test, 0.4, 0.01)
+    print('[Result: gridsearch 7 iterations]')
+    print('x=', '{0:.5f}'.format(x_min_grid))
+
+# %%
+# TEST 6: IAST_bi
+# %%
+if __name__ == '__main__':
+    # TEST IAST_bi
+    y1_test = 0.1
+    P_test = 2
+    [q1,q2], fval_test = IAST_bi(iso_test1, iso_test2,
+                                y1_test, P_test)
+
+    print('q1 = ')
+    print(q1)
+    print('q2 = ')
+    print(q2)
+    print('pi_error = ')
+    print(fval_test)
+# %%

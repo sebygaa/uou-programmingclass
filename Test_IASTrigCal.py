@@ -28,7 +28,7 @@ def iso2(P):
     q_tmp2 = numer/denom
     return q_tmp2
 
-y1_ran = np.linspace(0,1, 21)
+y1_ran = np.linspace(0,1, 81)
 P_fix = 5
 
 q1_list = []
@@ -50,5 +50,5 @@ q2_arr = np.array(q2_list)
 fig, ax = plt.subplots(figsize = [5,3.7])
 ax.plot(y1_ran, q1_arr)
 ax.plot(y1_ran, q2_arr)
-
+fig.show()
 # %%
