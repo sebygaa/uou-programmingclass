@@ -99,6 +99,8 @@ def gridsearch(fun, x_init, mesh_init,
 # FINDING IAST 
 def IAST_bi(fun1, fun2, y1, P):
     # Case1: y1 > 1-1E-7
+    if P < 1E-4:
+        return [0,0], 0
     if y1 > 1-1E-7:
         q = fun1(P)
         return [q,0], 0
@@ -136,7 +138,7 @@ def IAST_bi(fun1, fun2, y1, P):
             x_sol = opt_res.x[0]
             q1,q2 = x2q(fun1, fun2, 
                         y1, P, x_sol)    
-############            print('SuCCeSSS with optim solver !')
+#######            print('SuCCeSSS with optim solver !')
             return [q1,q2], fval
     except:
         is_comp_err = True
@@ -148,21 +150,42 @@ def IAST_bi(fun1, fun2, y1, P):
         if y1 > 0.5:
             x_est0 = 0.8
         else:
-            x_est0 = 0.2
-########        print("Failing Case")
+            x_est0 = 0.8
+#######        print("Failing Case")
         x_sol, fval = gridsearch(obj_err, x_est0, 0.01,
                                 n_iter = 7, r_shrink_mesh = 0.4)
         if fval < 1E-5:
             q1,q2 = x2q(fun1, fun2, 
-                        y1, P, x_sol)    
+                        y1, P, x_sol)
             return [q1,q2], fval
         else:
             x_est0 = x_sol
-            x_sol, fval = gridsearch(obj_err, x_est0, 0.01,
+            x_sol, fval = gridsearch(obj_err, x_est0, 0.008,
+                                n_iter = 7, r_shrink_mesh = 0.15)
+        
+        if fval < 1E-5:
+            q1,q2 = x2q(fun1, fun2, 
+                        y1, P, x_sol)
+            return [q1,q2], fval
+        else:
+            x_est0 = x_sol
+            x_sol, fval = gridsearch(obj_err, x_est0, 0.005,
+                                n_iter = 10, r_shrink_mesh = 0.4)
+        
+        if fval < 1E-5:
+            q1,q2 = x2q(fun1, fun2, 
+                        y1, P, x_sol)
+            return [q1,q2], fval
+        else:
+            x_est0 = x_sol
+            x_sol, fval = gridsearch(obj_err, x_est0, 0.002,
                                 n_iter = 10, r_shrink_mesh = 0.15)
+        
             q1,q2 = x2q(fun1, fun2, 
                         y1, P, x_sol)    
             return [q1,q2], fval
+
+            
 
 # %%
 # TEST CODES 
