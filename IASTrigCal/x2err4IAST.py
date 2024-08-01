@@ -29,8 +29,10 @@ def iso2(P):
     q = numor/denom
     return q
 
-P_test = 8
-y1_test = 0.07
+#P_test = 8
+#y1_test = 0.07
+P_test = 7.5
+y1_test = 0.005
 [q1,q2], fval = IAST_bi(iso1, iso2, y1_test, P_test)
 print('[q1, q2] = ', q1,',', q2)
 print('pi/RT error = ', fval)
@@ -40,8 +42,8 @@ print('pi/RT error = ', fval)
 x2er = lambda x: x2err_reg(iso1, iso2, y1_test, P_test, x)
 #err_test = x2er(0.2)
 #print(err_test)
-x_ran = np.linspace(0.5,0.6, 1001)
-#x_ran = np.linspace(1E-5,100E-5, 1001)
+#x_ran = np.linspace(0.5,0.6, 1001)
+x_ran = np.linspace(0.048+1E-5,0.048+100E-5, 5001)
 err_list = []
 for xx in x_ran:
     err_tmp = x2er(xx)
