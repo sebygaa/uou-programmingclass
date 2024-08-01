@@ -25,7 +25,7 @@ def x2err_reg(fun1, fun2, y1, P, x1_est1):
     P_o1 = y1*P/x1_est1
     # (1-y1)*P = (1-x1)*P_o2
     P_o2 = (1-y1)*P/(1-x1_est1)
-    N_integ_node = 20
+    N_integ_node = 25
     pi_ov_RT1 = iso2pi(fun1, P_o1, N_integ_node)
     pi_ov_RT2 = iso2pi(fun2, P_o2, N_integ_node)
     mse = np.sqrt((pi_ov_RT1 - pi_ov_RT2)**2)
@@ -115,10 +115,10 @@ def IAST_bi(fun1, fun2, y1, P):
         Penalty = 0
         x_est = x[0]
         if x_est > 1-1E-7:
-            Penalty = Penalty+1E4*(x_est-1)**2
+            Penalty = Penalty+1E5*(x_est-1)**2
             x_est = 1-1E-7
         elif x_est < 1E-7:
-            Penalty = Penalty+1E4*(x_est)**2
+            Penalty = Penalty+1E5*(x_est)**2
             x_est = 1E-7
         obj_mse = x2err_reg(fun1, fun2,
                         y1, P, x_est)
