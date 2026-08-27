@@ -16,6 +16,19 @@ allowed to split the space more than once (first on x1, then on x2).
 
 We then implement a decision tree classifier "by hand" (no sklearn),
 train it on the data, and visualize the decision boundary it learned.
+
+How a decision tree learns, in one paragraph
+---------------------------------------------
+A decision tree classifies data by asking a series of simple yes/no
+questions like "is x1 <= 5?". Training the tree means figuring out,
+at each step, which question best separates the classes for the data
+currently being looked at (measured with "Gini impurity", see the
+`gini` function below). The tree then splits the data into two
+smaller groups based on the answer, and repeats the same process
+separately on each group - this is why the code below is recursive.
+It keeps going until the groups are pure (all one class) or a stopping
+rule (like a maximum depth) is reached. See `best_split` and
+`build_tree` for exactly how this happens.
 """
 
 import numpy as np
@@ -47,6 +60,19 @@ def make_pattern_data(n_samples=300, noise_ratio=0.05, seed=0):
 # ---------------------------------------------------------------
 # 2. Impurity measure (Gini impurity)
 # ---------------------------------------------------------------
+# A decision tree grows by repeatedly asking "which yes/no question
+# splits my data into the purest possible groups?". We need a number
+# that tells us how "mixed up" a group of labels is, so we can compare
+# candidate questions. Gini impurity is one common choice:
+#
+#   gini = 1 - sum_over_classes(p_class^2)
+#
+# where p_class is the fraction of samples in that class.
+#   - If a group is ALL one class (p = 1.0 for that class), gini = 0
+#     (perfectly pure -> the tree is "done" with this group).
+#   - If a group is a perfect 50/50 mix of two classes, gini = 0.5
+#     (as mixed as it can be for 2 classes -> not useful yet).
+# Smaller gini = purer = better.
 def gini(y):
     """Gini impurity: 0 means the group is pure (all one class)."""
     if len(y) == 0:
@@ -59,6 +85,28 @@ def gini(y):
 # ---------------------------------------------------------------
 # 3. Find the best (feature, threshold) split
 # ---------------------------------------------------------------
+# This is the heart of the algorithm. A decision tree only ever asks
+# simple questions of the form "is feature[i] <= some threshold?".
+# To find the BEST question for the data currently in this node, we:
+#
+#   1. Try every feature (x1, x2, ...).
+#   2. For each feature, try every possible threshold (we use every
+#      unique value that appears in the data, since the split can
+#      only meaningfully happen "between" data points).
+#   3. For each (feature, threshold) pair, imagine splitting the data
+#      into a "left" group (value <= threshold) and a "right" group
+#      (value > threshold).
+#   4. Measure how pure those two groups would be (using gini), and
+#      combine them into one score weighted by how many samples fall
+#      on each side. This is the "weighted Gini impurity" of the split.
+#   5. Keep track of whichever (feature, threshold) gives the LOWEST
+#      weighted impurity -> that is the split that separates the
+#      classes the best.
+#
+# This is a brute-force / exhaustive search: simple to understand,
+# but not the fastest approach (real libraries like scikit-learn use
+# smarter, sorted-based algorithms). For a classroom-sized dataset it
+# is fast enough and easy to follow line by line.
 def best_split(X, y):
     """Search every feature and every candidate threshold for the split
     that gives the lowest weighted Gini impurity."""
@@ -68,17 +116,25 @@ def best_split(X, y):
     for feature in range(n_features):
         thresholds = np.unique(X[:, feature])
         for t in thresholds:
+            # Candidate split: everyone with this feature <= t goes left,
+            # everyone else goes right.
             left_mask = X[:, feature] <= t
             right_mask = ~left_mask
 
+            # A split that puts everyone on one side isn't a real split.
             if left_mask.sum() == 0 or right_mask.sum() == 0:
                 continue
 
+            # How pure would each side be if we actually split here?
             g_left = gini(y[left_mask])
             g_right = gini(y[right_mask])
+
+            # Combine both sides into one score, weighted by group size
+            # (a large pure group should count more than a tiny pure group).
             weighted_gini = (left_mask.sum() * g_left +
                               right_mask.sum() * g_right) / n_samples
 
+            # Remember the best (lowest-impurity) split seen so far.
             if weighted_gini < best_gini:
                 best_gini = weighted_gini
                 best_feature = feature
@@ -90,6 +146,12 @@ def best_split(X, y):
 # ---------------------------------------------------------------
 # 4. Tree node + recursive tree building
 # ---------------------------------------------------------------
+# A tree is made of Node objects linked together. Each node is one of:
+#   - a "decision" node: it asks "is feature[i] <= threshold?" and
+#     hands the sample off to its left or right child depending on
+#     the answer.
+#   - a "leaf" node: it has no question left to ask, and simply
+#     outputs a class label.
 class Node:
     def __init__(self, feature=None, threshold=None, left=None, right=None, label=None):
         self.feature = feature      # which feature this node splits on
@@ -99,23 +161,44 @@ class Node:
         self.label = label          # set only for leaf nodes
 
 
+# build_tree grows the tree recursively: it looks at the data that has
+# arrived at the current node, decides whether to keep splitting or to
+# stop and become a leaf, and if it splits, calls itself again on each
+# of the two smaller groups. This is a classic "divide and conquer"
+# algorithm.
 def build_tree(X, y, depth=0, max_depth=4, min_samples_split=5):
-    # Stopping conditions -> make a leaf node
+    # --- Stopping conditions: when should we STOP splitting and just
+    # guess the majority class instead? Without these, the tree would
+    # keep splitting until every leaf has a single point, which
+    # memorizes the training data (overfitting) instead of learning
+    # the general pattern.
+    #   - depth >= max_depth: we've asked enough questions already.
+    #   - len(y) < min_samples_split: too few samples left to split
+    #     meaningfully.
+    #   - gini(y) == 0.0: this group is already pure (all one class),
+    #     so there is nothing left to learn here.
     if (depth >= max_depth
             or len(y) < min_samples_split
             or gini(y) == 0.0):
         majority_label = int(round(np.mean(y))) if len(y) > 0 else 0
         return Node(label=majority_label)
 
+    # Ask "what is the best yes/no question to split this group with?"
     feature, threshold, _ = best_split(X, y)
 
     if feature is None:  # no split improves things -> leaf
         majority_label = int(round(np.mean(y)))
         return Node(label=majority_label)
 
+    # Actually perform the split: everyone <= threshold goes left,
+    # everyone else goes right.
     left_mask = X[:, feature] <= threshold
     right_mask = ~left_mask
 
+    # Recursively build a subtree for each half of the data. Each
+    # recursive call works on a smaller, more focused group, and will
+    # eventually stop (leaf) once one of the stopping conditions above
+    # is met.
     left_node = build_tree(X[left_mask], y[left_mask], depth + 1, max_depth, min_samples_split)
     right_node = build_tree(X[right_mask], y[right_mask], depth + 1, max_depth, min_samples_split)
 
@@ -125,16 +208,22 @@ def build_tree(X, y, depth=0, max_depth=4, min_samples_split=5):
 # ---------------------------------------------------------------
 # 5. Prediction
 # ---------------------------------------------------------------
+# To classify a new point, we start at the root (top) of the tree and
+# repeatedly answer each node's yes/no question, walking down to a
+# child node, until we reach a leaf. The leaf's label is our
+# prediction. This is why the shape is called a "tree" - each decision
+# branches into two possible paths.
 def predict_one(node, x):
-    if node.label is not None:  # leaf node
+    if node.label is not None:  # reached a leaf -> we have our answer
         return node.label
     if x[node.feature] <= node.threshold:
-        return predict_one(node.left, x)
+        return predict_one(node.left, x)   # "yes" branch
     else:
-        return predict_one(node.right, x)
+        return predict_one(node.right, x)  # "no" branch
 
 
 def predict(tree, X):
+    """Run predict_one for every row in X and collect the results."""
     return np.array([predict_one(tree, x) for x in X])
 
 
